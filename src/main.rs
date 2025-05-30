@@ -1,11 +1,9 @@
-use std::borrow::{Borrow, BorrowMut};
-use std::cell::RefCell;
-use std::sync::RwLock;
+use std::borrow::Borrow;
+use std::cell::{Cell, RefCell};
 
-use glam::{Vec2, vec2};
 use raylib::prelude::*;
 
-const PIN_RADIUS: f32 = 6.0;
+const PIN_RADIUS: f32 = 10.0;
 
 fn id_salt() -> usize {
     static mut COUNTER: usize = 0;
@@ -91,11 +89,11 @@ impl Bezier {
 }
 
 struct App {
-    nodes: Vec<Node>,
+    nodes: RefCell<Vec<Node>>,
     mouse_pos: Vector2,
     edges: Vec<RefCell<(Edge, Vector2, Vector2)>>,
     ongoing: Option<(Vector2, SocketRef)>,
-    right_click_window: Option<Vector2>,
+    right_click_window: Cell<Option<Vector2>>,
 }
 
 impl App {
@@ -104,94 +102,95 @@ impl App {
             ongoing: None,
             mouse_pos: Vector2::zero(),
             edges: vec![],
-            right_click_window: None,
+            right_click_window: None.into(),
             nodes: vec![
-                Node {
-                    id: id_salt(),
-                    position: Vector2::zero().into(),
-                    name: "Sample node1".to_string(),
-                    inputs: vec![
-                        Socket {
-                            id: id_salt(),
-                            kind: SocketKind::Input,
-                            name: "hydrogen".to_string(),
-                            absolute_position: None,
-                        }
-                        .into(),
-                        Socket {
-                            id: id_salt(),
-                            kind: SocketKind::Input,
-                            name: "chlorine".to_string(),
-                            absolute_position: None,
-                        }
-                        .into(),
-                    ],
+                // Node {
+                //     id: id_salt(),
+                //     position: Vector2::zero().into(),
+                //     name: "Sample node1".to_string(),
+                //     inputs: vec![
+                //         Socket {
+                //             id: id_salt(),
+                //             kind: SocketKind::Input,
+                //             name: "hydrogen".to_string(),
+                //             absolute_position: None,
+                //         }
+                //         .into(),
+                //         Socket {
+                //             id: id_salt(),
+                //             kind: SocketKind::Input,
+                //             name: "chlorine".to_string(),
+                //             absolute_position: None,
+                //         }
+                //         .into(),
+                //     ],
 
-                    outputs: vec![
-                        Socket {
-                            id: id_salt(),
-                            name: "hydrochloric acid".to_string(),
-                            kind: SocketKind::Output,
-                            absolute_position: None,
-                        }
-                        .into(),
-                    ],
-                },
-                Node {
-                    id: id_salt(),
-                    position: Vector2::zero().into(),
-                    name: "Sample node 2".to_string(),
-                    inputs: vec![
-                        Socket {
-                            id: id_salt(),
-                            kind: SocketKind::Input,
-                            name: "hydrochloric acid".to_string(),
-                            absolute_position: None,
-                        }
-                        .into(),
-                    ],
+                //     outputs: vec![
+                //         Socket {
+                //             id: id_salt(),
+                //             name: "hydrochloric acid".to_string(),
+                //             kind: SocketKind::Output,
+                //             absolute_position: None,
+                //         }
+                //         .into(),
+                //     ],
+                // },
+                // Node {
+                //     id: id_salt(),
+                //     position: Vector2::zero().into(),
+                //     name: "Sample node 2".to_string(),
+                //     inputs: vec![
+                //         Socket {
+                //             id: id_salt(),
+                //             kind: SocketKind::Input,
+                //             name: "hydrochloric acid".to_string(),
+                //             absolute_position: None,
+                //         }
+                //         .into(),
+                //     ],
 
-                    outputs: vec![
-                        Socket {
-                            id: id_salt(),
-                            name: "idk what to put here".to_string(),
-                            kind: SocketKind::Output,
-                            absolute_position: None,
-                        }
-                        .into(),
-                    ],
-                },
-                Node {
-                    id: id_salt(),
-                    position: Vector2::zero().into(),
-                    name: "hydrogen".to_string(),
-                    inputs: vec![],
-                    outputs: vec![
-                        Socket {
-                            id: id_salt(),
-                            name: "hydrogen".to_string(),
-                            kind: SocketKind::Output,
-                            absolute_position: None,
-                        }
-                        .into(),
-                    ],
-                },
-                Node {
-                    id: id_salt(),
-                    position: Vector2::zero().into(),
-                    name: "chlorine".to_string(),
-                    inputs: vec![],
-                    outputs: vec![
-                        Socket {
-                            id: id_salt(),
-                            name: "chlorine".to_string(),
-                            kind: SocketKind::Output,
-                            absolute_position: None,
-                        }
-                        .into(),
-                    ],
-                },
-            ],
+                //     outputs: vec![
+                //         Socket {
+                //             id: id_salt(),
+                //             name: "idk what to put here".to_string(),
+                //             kind: SocketKind::Output,
+                //             absolute_position: None,
+                //         }
+                //         .into(),
+                //     ],
+                // },
+                // Node {
+                //     id: id_salt(),
+                //     position: Vector2::zero().into(),
+                //     name: "hydrogen".to_string(),
+                //     inputs: vec![],
+                //     outputs: vec![
+                //         Socket {
+                //             id: id_salt(),
+                //             name: "hydrogen".to_string(),
+                //             kind: SocketKind::Output,
+                //             absolute_position: None,
+                //         }
+                //         .into(),
+                //     ],
+                // },
+                // Node {
+                //     id: id_salt(),
+                //     position: Vector2::zero().into(),
+                //     name: "chlorine".to_string(),
+                //     inputs: vec![],
+                //     outputs: vec![
+                //         Socket {
+                //             id: id_salt(),
+                //             name: "chlorine".to_string(),
+                //             kind: SocketKind::Output,
+                //             absolute_position: None,
+                //         }
+                //         .into(),
+                //     ],
+                // },
+            ]
+            .into(),
         }
     }
 
@@ -199,18 +198,25 @@ impl App {
         self.mouse_pos = rl.get_mouse_position();
 
         if rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_RIGHT) {
-            self.right_click_window = match self.right_click_window {
-                None => Some(self.mouse_pos),
-                _ => None,
-            };
+            // remove the wire if right clicked on the pin
+            if let Some((node, _)) = self.get_node_and_pin(self.mouse_pos) {
+                let id = node.id;
+                if let Some((idx, _)) = self.edges.iter().enumerate().find(|(_, i)| {
+                    let Edge { from, to } = (*i).borrow().0;
+                    from.node_id == id || to.node_id == id
+                }) {
+                    self.edges.swap_remove(idx);
+                }
+            } else {
+                self.right_click_window
+                    .set(match self.right_click_window.get() {
+                        None => Some(self.mouse_pos),
+                        _ => None,
+                    });
+            }
         }
 
-        if rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT)
-            && self.right_click_window.is_some()
-        {
-            self.right_click_window = None;
-        }
-
+        // Wire start
         if self.ongoing.is_none() && rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT) {
             if let Some((node, socket)) = self.get_node_and_pin(self.mouse_pos) {
                 if !matches!(socket.borrow().kind, SocketKind::Output) {
@@ -218,7 +224,7 @@ impl App {
                 }
 
                 let ongoing = Some((
-                    self.mouse_pos,
+                    socket.borrow().absolute_position.unwrap(),
                     SocketRef {
                         node_id: node.id,
                         socket_id: socket.borrow().id,
@@ -227,25 +233,30 @@ impl App {
 
                 self.ongoing = ongoing;
             }
-        } else if self.ongoing.is_some()
+        }
+        // Wire end
+        else if self.ongoing.is_some()
             && rl.is_mouse_button_released(MouseButton::MOUSE_BUTTON_LEFT)
         {
+            let to = *self.ongoing.unwrap().1.borrow();
             if let Some((node, socket)) = self.get_node_and_pin(self.mouse_pos) {
                 if !matches!(socket.borrow().kind, SocketKind::Input) {
                     return;
                 }
 
+                let b = socket.borrow();
                 let edge = Edge {
                     from: SocketRef {
                         node_id: node.id,
-                        socket_id: socket.borrow().id,
+                        socket_id: b.id,
                     },
-                    to: *self.ongoing.unwrap().1.borrow(),
+                    to,
                 };
 
-                let v1 = self.ongoing.unwrap().0;
-                let v2 = self.mouse_pos;
+                let v2 = b.absolute_position.unwrap();
+                drop(b);
 
+                let v1 = self.ongoing.unwrap().0;
                 self.edges.push((edge, v1, v2).into());
             }
 
@@ -253,30 +264,22 @@ impl App {
         }
     }
 
-    fn get_node_and_pin(&self, point: Vector2) -> Option<(&Node, &RefCell<Socket>)> {
-        self.nodes.iter().find_map(
+    /// last item is the location of center for snapping
+    fn get_node_and_pin(&mut self, point: Vector2) -> Option<(&Node, &RefCell<Socket>)> {
+        // * 2 for snapping
+        let pred = |i: Vector2| (i - point).length_sqr() <= (PIN_RADIUS).powi(2);
+
+        self.nodes.get_mut().iter().find_map(
             |node @ Node {
                  inputs, outputs, ..
              }| {
                 inputs
                     .iter()
-                    .find(|i| {
-                        (*i).borrow()
-                            .absolute_position
-                            .map(|i: Vector2| {
-                                (i - self.mouse_pos).length_sqr() <= PIN_RADIUS * PIN_RADIUS
-                            })
-                            .unwrap_or(false)
-                    })
+                    .find(|i| (*i).borrow().absolute_position.map(pred).unwrap_or(false))
                     .or_else(|| {
-                        outputs.iter().find(|o| {
-                            (*o).borrow()
-                                .absolute_position
-                                .map(|i: Vector2| {
-                                    (i - self.mouse_pos).length_sqr() <= PIN_RADIUS * PIN_RADIUS
-                                })
-                                .unwrap_or(false)
-                        })
+                        outputs
+                            .iter()
+                            .find(|o| (*o).borrow().absolute_position.map(pred).unwrap_or(false))
                     })
                     .map(|i| (node, i))
             },
@@ -297,11 +300,12 @@ impl App {
 
     pub fn draw_imgui(&mut self, d: &mut RaylibDrawHandle) {
         d.draw_imgui(|ui| {
-            for node in &self.nodes {
+            for (idx, node) in self.nodes.borrow().iter().enumerate() {
                 let old_pos = *node.position.borrow();
-                ui.window(&node.name)
+                ui.window(&format!("{}  #{idx}", node.name))
                     .resizable(false)
                     .collapsible(false)
+                    .position([old_pos.x, old_pos.y], ::imgui::Condition::Appearing)
                     .always_auto_resize(true)
                     .build(|| {
                         let [x, y] = ui.window_pos();
@@ -390,7 +394,7 @@ impl App {
                 };
             }
 
-            if let Some(Vector2 { x, y }) = self.right_click_window {
+            if let Some(v @ Vector2 { x, y }) = self.right_click_window.get() {
                 ui.window("right click window")
                     .title_bar(false)
                     .resizable(false)
@@ -399,43 +403,47 @@ impl App {
                     .position([x, y], ::imgui::Condition::Always)
                     .collapsed(false, ::imgui::Condition::Always)
                     .build(|| {
-                        if ui.button("button 1")
-                            | ui.button("button 2")
-                            | ui.button("button 3")
-                            | ui.button("button 4")
-                            | ui.button("button 5")
-                            | ui.button("button 6")
-                        {
-                            println!("pressed");
+                        let mut clicked = false;
+                        if ui.button("NAND") {
+                            clicked = true;
+
+                            self.nodes.borrow_mut().push(Node {
+                                id: id_salt(),
+                                name: "NAND gate".into(),
+                                position: v.into(),
+                                inputs: vec![
+                                    Socket {
+                                        id: id_salt(),
+                                        name: "input 0".to_string(),
+                                        kind: SocketKind::Input,
+                                        absolute_position: None,
+                                    }
+                                    .into(),
+                                    Socket {
+                                        id: id_salt(),
+                                        name: "input 1".to_string(),
+                                        kind: SocketKind::Input,
+                                        absolute_position: None,
+                                    }
+                                    .into(),
+                                ],
+                                outputs: vec![
+                                    Socket {
+                                        id: id_salt(),
+                                        name: "#".to_string(),
+                                        kind: SocketKind::Output,
+                                        absolute_position: None,
+                                    }
+                                    .into(),
+                                ],
+                            });
+                        }
+
+                        if clicked {
+                            self.right_click_window.set(None);
                         }
                     });
             }
         });
     }
 }
-
-// fn generate_bezier_points(control_points: &[Vector2], segments: usize) -> Vec<Vector2> {
-//     let mut points = Vec::with_capacity(segments + 1);
-//     for i in 0..=segments {
-//         let t = i as f32 / segments as f32;
-//         let point = de_casteljau(control_points, t);
-//         points.push(point);
-//     }
-
-//     points
-// }
-
-// fn de_casteljau(points: &[Vector2], t: f32) -> Vector2 {
-//     if points.len() == 1 {
-//         return points[0];
-//     }
-
-//     let mut next = Vec::with_capacity(points.len() - 1);
-//     for i in 0..points.len() - 1 {
-//         let x = (1.0 - t) * points[i].x + t * points[i + 1].x;
-//         let y = (1.0 - t) * points[i].y + t * points[i + 1].y;
-//         next.push(Vector2 { x, y });
-//     }
-
-//     de_casteljau(&next, t)
-// }
