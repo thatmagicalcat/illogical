@@ -1,0 +1,8 @@
+[package]
+name = "bezier"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+glam = "0.30.3"
+raylib = { version = "5.5.1", features = ["imgui"] }
