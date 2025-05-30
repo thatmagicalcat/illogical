@@ -18,14 +18,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 
 [[package]]
-name = "bezier"
-version = "0.1.0"
-dependencies = [
- "glam",
- "raylib",
-]
-
-[[package]]
 name = "bindgen"
 version = "0.70.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -124,6 +116,15 @@ name = "glob"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8d1add55171497b4705a648c6b583acafb01d58050a51727785f0b2c8e0a2b2"
+
+[[package]]
+name = "illogical"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "imgui",
+ "raylib",
+]
 
 [[package]]
 name = "imgui"

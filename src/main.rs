@@ -18,7 +18,7 @@ fn id_salt() -> usize {
 
 fn main() {
     let (mut rl, thread) = raylib::init()
-        .title("bezier")
+        .title("illogical")
         .width(800)
         .height(800)
         .resizable()
@@ -34,7 +34,7 @@ fn main() {
         let mut d = rl.begin_drawing(&thread);
         d.clear_background(Color::BLACK);
 
-        app.draw_nodes(&mut d);
+        app.draw_imgui(&mut d);
         app.draw(&mut d);
     }
 }
@@ -93,13 +93,9 @@ impl Bezier {
 struct App {
     nodes: Vec<Node>,
     mouse_pos: Vector2,
-
-    /// Edge with the bezier points for drawing
     edges: Vec<RefCell<(Edge, Vector2, Vector2)>>,
-
-    /// starting point
     ongoing: Option<(Vector2, SocketRef)>,
-    // ongoing_bezier_points: Vec<Vector2>,
+    right_click_window: Option<Vector2>,
 }
 
 impl App {
@@ -108,6 +104,7 @@ impl App {
             ongoing: None,
             mouse_pos: Vector2::zero(),
             edges: vec![],
+            right_click_window: None,
             nodes: vec![
                 Node {
                     id: id_salt(),
@@ -199,9 +196,20 @@ impl App {
     }
 
     pub fn handle_events(&mut self, rl: &mut RaylibHandle) {
-        let p1 = rl.get_mouse_position();
-
         self.mouse_pos = rl.get_mouse_position();
+
+        if rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_RIGHT) {
+            self.right_click_window = match self.right_click_window {
+                None => Some(self.mouse_pos),
+                _ => None,
+            };
+        }
+
+        if rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT)
+            && self.right_click_window.is_some()
+        {
+            self.right_click_window = None;
+        }
 
         if self.ongoing.is_none() && rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT) {
             if let Some((node, socket)) = self.get_node_and_pin(self.mouse_pos) {
@@ -287,7 +295,7 @@ impl App {
         }
     }
 
-    pub fn draw_nodes(&mut self, d: &mut RaylibDrawHandle) {
+    pub fn draw_imgui(&mut self, d: &mut RaylibDrawHandle) {
         d.draw_imgui(|ui| {
             for node in &self.nodes {
                 let old_pos = *node.position.borrow();
@@ -360,55 +368,74 @@ impl App {
                 let node_id = node.id;
                 if new_pos != old_pos {
                     let displacement = new_pos - old_pos;
-                    self.edges
-                        .iter()
-                        .for_each(|i| {
-                            let mut b = i.borrow_mut();
-                            let Edge {
-                                from:
-                                    SocketRef {
-                                        node_id: node_id2, ..
-                                    },
-                                to:
-                                    SocketRef {
-                                        node_id: node_id1, ..
-                                    },
-                            } = b.0;
+                    self.edges.iter().for_each(|i| {
+                        let mut b = i.borrow_mut();
+                        let Edge {
+                            from:
+                                SocketRef {
+                                    node_id: node_id2, ..
+                                },
+                            to:
+                                SocketRef {
+                                    node_id: node_id1, ..
+                                },
+                        } = b.0;
 
-                            if node_id1 == node_id {
-                                b.1 += displacement;
-                            } else if node_id2 == node_id {
-                                b.2 += displacement;
-                            }
-                        });
+                        if node_id1 == node_id {
+                            b.1 += displacement;
+                        } else if node_id2 == node_id {
+                            b.2 += displacement;
+                        }
+                    });
                 };
+            }
+
+            if let Some(Vector2 { x, y }) = self.right_click_window {
+                ui.window("right click window")
+                    .title_bar(false)
+                    .resizable(false)
+                    .always_auto_resize(true)
+                    .opened(&mut true)
+                    .position([x, y], ::imgui::Condition::Always)
+                    .collapsed(false, ::imgui::Condition::Always)
+                    .build(|| {
+                        if ui.button("button 1")
+                            | ui.button("button 2")
+                            | ui.button("button 3")
+                            | ui.button("button 4")
+                            | ui.button("button 5")
+                            | ui.button("button 6")
+                        {
+                            println!("pressed");
+                        }
+                    });
             }
         });
     }
 }
 
-fn generate_bezier_points(control_points: &[Vector2], segments: usize) -> Vec<Vector2> {
-    let mut points = Vec::with_capacity(segments + 1);
-    for i in 0..=segments {
-        let t = i as f32 / segments as f32;
-        let point = de_casteljau(control_points, t);
-        points.push(point);
-    }
+// fn generate_bezier_points(control_points: &[Vector2], segments: usize) -> Vec<Vector2> {
+//     let mut points = Vec::with_capacity(segments + 1);
+//     for i in 0..=segments {
+//         let t = i as f32 / segments as f32;
+//         let point = de_casteljau(control_points, t);
+//         points.push(point);
+//     }
 
-    points
-}
+//     points
+// }
 
-fn de_casteljau(points: &[Vector2], t: f32) -> Vector2 {
-    if points.len() == 1 {
-        return points[0];
-    }
+// fn de_casteljau(points: &[Vector2], t: f32) -> Vector2 {
+//     if points.len() == 1 {
+//         return points[0];
+//     }
 
-    let mut next = Vec::with_capacity(points.len() - 1);
-    for i in 0..points.len() - 1 {
-        let x = (1.0 - t) * points[i].x + t * points[i + 1].x;
-        let y = (1.0 - t) * points[i].y + t * points[i + 1].y;
-        next.push(Vector2 { x, y });
-    }
+//     let mut next = Vec::with_capacity(points.len() - 1);
+//     for i in 0..points.len() - 1 {
+//         let x = (1.0 - t) * points[i].x + t * points[i + 1].x;
+//         let y = (1.0 - t) * points[i].y + t * points[i + 1].y;
+//         next.push(Vector2 { x, y });
+//     }
 
-    de_casteljau(&next, t)
-}
+//     de_casteljau(&next, t)
+// }
