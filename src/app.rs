@@ -1,26 +1,55 @@
 use std::borrow::Borrow;
 use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 
 use raylib::prelude::*;
 
 use crate::PIN_RADIUS;
 use crate::id_salt;
-use crate::renderer;
 use crate::wire::*;
 
+pub type DependencyGraph = HashMap<usize, Vec<(SocketKind, usize)>>;
+
+// pub struct Evaluator {
+//     pub values: HashMap<SocketRef, bool>, // SocketRef -> bool
+// }
+
+fn build_dependency_graph(app: &App) -> DependencyGraph {
+    let mut deps: DependencyGraph = HashMap::new();
+
+    for edge in &app.edges {
+        let Edge {
+            from: output,
+            to: input,
+        } = edge.borrow().0;
+
+        deps.entry(input.node_id).or_default().push((SocketKind::Output, output.node_id));
+        deps.entry(output.node_id).or_default().push((SocketKind::Input, input.node_id));
+    }
+
+    deps
+}
+
 pub struct App {
+    // TODO: use a hash map?
     pub nodes: RefCell<Vec<Node>>,
     pub mouse_pos: Vector2,
     pub edges: Vec<RefCell<(Edge, Vector2, Vector2)>>,
     pub ongoing: Option<(Vector2, SocketRef)>,
     pub right_click_window: Cell<Option<Vector2>>,
+    pub dependency_graph: DependencyGraph,
+
+    // re-evalutae the graph
+    eval: Cell<bool>,
 }
 
 impl App {
     pub fn new() -> Self {
         Self {
             ongoing: None,
+            eval: false.into(),
             mouse_pos: Vector2::zero(),
+            dependency_graph: DependencyGraph::new(),
             edges: vec![],
             right_click_window: None.into(),
             nodes: vec![
@@ -175,9 +204,16 @@ impl App {
 
                 let v2 = b.absolute_position.unwrap();
                 drop(b);
-
                 let v1 = self.ongoing.unwrap().0;
-                self.edges.push((edge, v1, v2).into());
+
+                if !self.edges.iter().any(|i| (*i).borrow().0 == edge) {
+                    self.edges.push((edge, v1, v2).into());
+                }
+
+                let dep_graph = build_dependency_graph(self);
+                self.dependency_graph = dep_graph;
+
+                self.eval.set(true);
             }
 
             self.ongoing = None;
@@ -253,7 +289,7 @@ impl App {
                 };
             }
 
-            if let Some(v @ Vector2 { x, y }) = self.right_click_window.get() {
+            if let Some(node_position @ Vector2 { x, y }) = self.right_click_window.get() {
                 ui.window("right click window")
                     .title_bar(false)
                     .resizable(false)
@@ -263,40 +299,15 @@ impl App {
                     .collapsed(false, ::imgui::Condition::Always)
                     .build(|| {
                         let mut clicked = false;
-                        if ui.button("NAND") {
-                            clicked = true;
 
-                            self.nodes.borrow_mut().push(Node {
-                                id: id_salt(),
-                                name: "NAND gate".into(),
-                                position: v.into(),
-                                inputs: vec![
-                                    Socket {
-                                        id: id_salt(),
-                                        name: "input 0".to_string(),
-                                        kind: SocketKind::Input,
-                                        absolute_position: None,
-                                    }
-                                    .into(),
-                                    Socket {
-                                        id: id_salt(),
-                                        name: "input 1".to_string(),
-                                        kind: SocketKind::Input,
-                                        absolute_position: None,
-                                    }
-                                    .into(),
-                                ],
-                                outputs: vec![
-                                    Socket {
-                                        id: id_salt(),
-                                        name: "#".to_string(),
-                                        kind: SocketKind::Output,
-                                        absolute_position: None,
-                                    }
-                                    .into(),
-                                ],
-                            });
-                        }
+                        NodeKind::list().into_iter().for_each(|nodekind| {
+                            if ui.button(nodekind.to_string()) {
+                                clicked = true;
+                                self.nodes
+                                    .borrow_mut()
+                                    .push(nodekind.build(node_position, id_salt));
+                            }
+                        });
 
                         if clicked {
                             self.right_click_window.set(None);
@@ -330,7 +341,24 @@ impl App {
                     let dl = ui.get_window_draw_list();
                     let button_size = [PIN_RADIUS * 2.0, PIN_RADIUS * 2.0];
 
-                    // TODO: Event handling
+                    match &node.kind {
+                        NodeKind::Input(enabled) => {
+                            let b = enabled.get() as u8 as f32;
+                            if ui.color_button("    ", [b, b, b, 1.0]) {
+                                enabled.set(!enabled.get());
+                                self.eval.set(true);
+                            }
+                        }
+
+                        NodeKind::Display(enabled) => {
+                            let b = enabled.get() as u8 as f32;
+                            if ui.color_button("    ", [b, b, b, 1.0]) {
+                                self.eval.set(true);
+                            }
+                        }
+
+                        _ => {}
+                    }
 
                     if let Some(i) = input {
                         let i_borrow = i.borrow();
@@ -372,6 +400,18 @@ impl App {
                     }
                 }
             });
+    }
+
+    pub fn update(&self) {
+        if self.eval.get() {
+            println!("rebuilding");
+            dbg!(&self.dependency_graph);
+            self.nodes.borrow().iter().for_each(|i| {
+                i.eval(self, &self.dependency_graph);
+            });
+
+            self.eval.set(false);
+        }
     }
 }
 
