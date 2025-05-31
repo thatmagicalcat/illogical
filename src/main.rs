@@ -26,6 +26,7 @@ fn main() {
         let mut d = rl.begin_drawing(&thread);
         d.clear_background(Color::BLACK);
 
+        app.update();
         app.draw_imgui(&mut d);
         app.draw(&mut d);
     }
